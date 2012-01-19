@@ -2,7 +2,7 @@
 
 ##Description
 
-**railscasts_downloader** is a script for lightweight download, display names and descriptions episode(s) from Railscasts.com (only FREE content). Written on Ruby for linux and MacOS.
+**railscasts-downloader** is a script for lightweight download, display names and descriptions episode(s) from Railscasts.com (only FREE content). Written on Ruby for linux and MacOS.
 
 ##Instalation
 

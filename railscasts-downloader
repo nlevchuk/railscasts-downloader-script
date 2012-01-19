@@ -1,0 +1,252 @@
+#!/usr/bin/env ruby
+require 'rubygems'
+require 'nokogiri'
+require 'open-uri'
+
+url = "http://feeds.feedburner.com/railscasts"
+dush = false
+system_words = %w{first last all --with-desc}
+system_commands = %w{-s -d}
+choose_episodes = []
+with_desc = false
+mod = false
+mod_word = 0
+lf_count = 0
+#-------------------------------------------------------------------------------------------------------
+def colorize(text, color_code)
+  "\e[#{color_code}m#{text}\e[0m"
+end
+def red(text); colorize(text, 31); end
+def yellow(text); colorize(text, 33); end
+def blue(text); colorize(text, 34); end
+def lightblue(text); colorize(text, "0;34"); end
+#---
+def argv_error
+  puts "You introduced wrong arguments. Please, run script without parameters for more information."
+  exit
+end
+#---
+def prepare(content, number_of_episodes, options, mod, lf_count, with_desc)
+  all_titles = []
+  all_links = []
+  all_descriptions = []
+  entries = []
+  content.css("item").each do |article|
+    all_titles << article.at_css("title").text
+    all_links << article.at_css("enclosure")[:url]
+    all_descriptions << article.at_css("description").text
+  end
+
+  if mod == "first"
+    entries = all_titles.last(lf_count.to_i).reverse
+  elsif mod == "last"
+    entries = all_titles.first(lf_count.to_i)
+  elsif mod == "all"
+    entries = all_titles
+  else
+    titles = []
+    all_titles.each do |item|
+      if number_of_episodes.include?(item.split(" ").first[1..-1].to_i)
+        titles << item
+      end
+    end
+    entries = titles.reverse
+  end
+
+  if options == "-s"
+    if with_desc
+      descriptions = []
+      entries.each do |item|
+        descriptions << all_descriptions[all_titles.index(item)]
+      end
+      show_name_episodes(entries, descriptions)
+    else
+      show_name_episodes(entries, nil)
+    end
+  end
+
+  if options == "-d"
+    dir_name = "railscasts"
+    links = []
+    entries.each do |item|
+      links << all_links[all_titles.index(item)]
+    end
+    if File.directory?(dir_name)
+      Dir.chdir(dir_name)
+      download_eposides(links)
+      Dir.chdir("..")
+    else
+      download_eposides(links)
+    end
+  end
+end
+#----
+def show_name_episodes(entries, descriptions)
+  if descriptions.nil?
+    entries.each{|episode| puts " #{lightblue(episode)}"}
+  else
+    entries.each_with_index do |episode, index|
+      puts " #{lightblue(episode)} - #{descriptions[index]}"
+    end
+  end
+end
+#----
+def download_eposides(episodes)
+  episodes.each do |episode|
+    file_name = episode.match(/\d+([-]\w+)*(.mp4)$/).to_s
+    file_number = file_name.match(/^\d+/).to_s
+    if Dir.glob("#{file_number}*").empty?
+      puts " -> Started downloading the file #{yellow(file_name[0..-5])}"
+      system("curl -o #{file_name} #{episode}")
+      puts " -> Downloading completed!"
+    else
+      puts " -> [#{blue('NOTICE')}] The file with name #{yellow(file_name)} exist!"
+    end
+  end
+end
+# --------------------------------------------------------------------------
+if ARGV.empty?
+  puts "Usage: ./railscasts-downloader <command> [[OPTION] <number of episodes>] [<episode(s)>] [--with-desc (only -s command)]"
+  puts "This is script for lightweight download, display names and descriptions episodes from Railscasts.com (only FREE content)"
+  puts " "
+  puts "Command:"
+  puts " '-s' : show name of episode(s)"
+  puts " '-d' : download episode(s)"
+  puts " "
+  puts "Option:"
+  puts " 'first/last <count>' : show or download first/last <count> episode(s)"
+  puts " 'all'                : download all(missed) episode(s)"
+  puts " '--with-desc'        : display description selected episode(s) (only -s command)"
+  puts " "
+  puts "Examples:"
+  puts " '-s first 5'        - show first 5 eposides"
+  puts " '-d 137',           - download only 137 episode"
+  puts " '-d 4-8',           - download from 4 to 8 episodes"
+  puts " '-d last 3'         - download last 3 episodes"
+  puts " '-s 5 --with-desc'  - show episode number 5 with description"
+  puts " '-d all'            - download all(missing) episodes"
+  exit
+end
+
+argv_words = []
+ARGV.each do |x|
+  argv_words << x
+end
+
+if argv_words[0] == system_commands[0] || argv_words[0] == system_commands[1]   # if '-s' or '-d'
+  if argv_words[1]
+    case argv_words[1]
+      when system_words[0]     # first
+        if argv_words[3] && argv_words[3] != system_words[3]
+          argv_error
+        end
+        mod = true
+        mod_word = system_words[0]
+        if argv_words[2] && argv_words[2].match(/^\d+$/)
+          lf_count = argv_words[2]
+        elsif argv_words[2].nil? || argv_words[2] == system_words[3]
+          lf_count = 1
+        else
+          argv_error
+        end
+      when system_words[1]   # last
+        if argv_words[3] && argv_words[3] != system_words[3]
+          argv_error
+        end
+        mod = true
+        mod_word = system_words[1]
+        if argv_words[2] && argv_words[2].match(/^\d+$/)
+          lf_count = argv_words[2]
+        elsif argv_words[2].nil? || argv_words[2] == system_words[3]
+          lf_count = 1
+        else
+          argv_error
+        end
+      when system_words[2]     # all
+        if argv_words[2]
+          argv_error
+        end
+        mod = true
+        mod_word = system_words[2]
+      when  /^\d+$/
+        if argv_words[2] && argv_words[2] != system_words[3]
+          argv_error
+        end
+        choose_episodes[0] = argv_words[1].to_i
+      when /^\d+[\-]\d+$/    # if type '1-5'
+        if argv_words[2]
+          argv_error
+        end
+        first, second = argv_words[1].split("-").map(&:to_i)
+        if first >= second
+          puts " -> [#{red('INPUT ERROR')}] 1: First digit > Second digit, or 2: They equal"
+          exit
+        else
+          choose_episodes = (first..second).to_a.reverse
+          dush = true
+        end
+      else
+        argv_error
+      end
+  else
+    argv_error
+  end
+else
+  argv_error
+end
+
+if argv_words[0] == system_commands[0] && argv_words[2] == system_words[3] || argv_words[3] == system_words[3]
+  with_desc = true
+end
+
+if argv_words[0] == system_commands[1]
+  if argv_words[2] == system_words[3] || argv_words[3] == system_words[3]
+    argv_error
+  end
+  dir_name = "railscasts"
+  if Dir.pwd.match(/\/#{dir_name}$/)
+    file = File.new(".config", "a+")
+    file.write("create_directory = no")
+    file.close
+  else
+    ARGV.clear
+    mkdir = false
+    dir_created = false
+    unless File.directory?(dir_name)
+      file = File.new(".config", "a+")
+      while (line = file.gets)
+        if line[0..15] == 'create_directory'
+          dir_created = true
+          if line[16..-1].match(/yes$/)
+            mkdir = true
+          end
+        end
+      end
+      unless dir_created
+        print " -> Create directory railcasts[Yes/no]? "
+        gets()
+        if $_.match(/^y|yes|Yes|YES$/) || $_.match(/^\s$/)
+          file.write("create_directory = yes")
+          mkdir = true
+        else
+          file.write("create_directory = no")
+        end
+      end
+      if mkdir
+        if Dir.mkdir(dir_name)
+          puts " -> Directory was created - #{dir_name}"
+        end
+      end
+      file.close
+    end
+  end
+end
+
+content_page = Nokogiri::HTML(open(url))
+if mod
+  prepare(content_page, false, argv_words[0], mod_word, lf_count, with_desc)
+elsif dush
+  prepare(content_page, choose_episodes, argv_words[0], false, false, with_desc)
+elsif choose_episodes[0] && !choose_episodes[1]
+  prepare(content_page, choose_episodes, argv_words[0], false, false, with_desc)
+end
