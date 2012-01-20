@@ -7,13 +7,16 @@
 ##Instalation
 
  Clone git repository:
- - git clone git://github.com/nlevchuk/railscasts-downloader-script.git
+
+ 	git clone git://github.com/nlevchuk/railscasts-downloader-script.git
 
  Change directory:
- - cd railscasts-downloader-script
+
+ 	cd railscasts-downloader-script
 
  Run bundler:
- - bundle install
+
+ 	bundle install
 
  Then move railscasts script to directory where you want to contain download episodes. You can move it to directory that exist other episodes and download the missing one.
 
