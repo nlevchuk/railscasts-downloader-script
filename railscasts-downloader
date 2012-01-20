@@ -2,6 +2,7 @@
 require 'rubygems'
 require 'nokogiri'
 require 'open-uri'
+require 'timeout'
 
 url = "http://feeds.feedburner.com/railscasts"
 dush = false
@@ -97,8 +98,11 @@ def download_eposides(episodes)
     file_number = file_name.match(/^\d+/).to_s
     if Dir.glob("#{file_number}*").empty?
       puts " -> Started downloading the file #{yellow(file_name[0..-5])}"
-      system("curl -o #{file_name} #{episode}")
-      puts " -> Downloading completed!"
+      if system("wget --timeout 30 #{episode}")
+        puts " -> Downloading completed!"
+      else
+        puts " -> Can't download the file :("
+      end
     else
       puts " -> [#{blue('NOTICE')}] The file with name #{yellow(file_name)} exist!"
     end
@@ -174,7 +178,7 @@ if argv_words[0] == system_commands[0] || argv_words[0] == system_commands[1]   
         end
         choose_episodes[0] = argv_words[1].to_i
       when /^\d+[\-]\d+$/    # if type '1-5'
-        if argv_words[2]
+        if argv_words[2] && argv_words[2] != system_words[3]
           argv_error
         end
         first, second = argv_words[1].split("-").map(&:to_i)
@@ -242,11 +246,15 @@ if argv_words[0] == system_commands[1]
   end
 end
 
-content_page = Nokogiri::HTML(open(url))
-if mod
-  prepare(content_page, false, argv_words[0], mod_word, lf_count, with_desc)
-elsif dush
-  prepare(content_page, choose_episodes, argv_words[0], false, false, with_desc)
-elsif choose_episodes[0] && !choose_episodes[1]
-  prepare(content_page, choose_episodes, argv_words[0], false, false, with_desc)
+begin
+  content_page = Nokogiri::HTML(open(url))
+  if mod
+    prepare(content_page, false, argv_words[0], mod_word, lf_count, with_desc)
+  elsif dush
+    prepare(content_page, choose_episodes, argv_words[0], false, false, with_desc)
+  elsif choose_episodes[0] && !choose_episodes[1]
+    prepare(content_page, choose_episodes, argv_words[0], false, false, with_desc)
+  end
+rescue SocketError
+  puts "The problem of internet connection :("
 end

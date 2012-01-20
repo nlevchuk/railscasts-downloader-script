@@ -21,7 +21,7 @@
 
 - ruby(1.8.7 and higher);
 - rubygems (gem nokogiri, open-uri, timeout);
-- curl;
+- wget;
 
 ##Usage
 
